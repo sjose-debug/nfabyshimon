@@ -49,8 +49,12 @@ def get_driver():
     # Additional options for stability
     opts.add_argument("--disable-extensions")
     opts.add_argument("--disable-images")  # Faster loading
-    opts.add_argument("--disable-javascript")  # Only if site works without JS
+    # REMOVED: opts.add_argument("--disable-javascript")  # This breaks login!
     opts.add_experimental_option("excludeSwitches", ["enable-logging"])
+    
+    # Anti-detection basics (minimal but effective)
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+    opts.add_experimental_option('useAutomationExtension', False)
     
     # Try different Chrome binary locations
     chrome_binaries = [
@@ -87,6 +91,37 @@ def get_driver():
     driver.implicitly_wait(10)
     return driver
 
+def dismiss_popups(driver):
+    """Dismiss subscription and other popups"""
+    try:
+        # Multiple methods to ensure popup is dismissed
+        driver.execute_script("""
+            // Remove subscription notification
+            var sub = document.getElementById('subscription-notification');
+            if(sub) sub.remove();
+            
+            // Remove any modal backdrops
+            var backdrops = document.querySelectorAll('.modal-backdrop, .popup-overlay, .overlay');
+            backdrops.forEach(function(el) { el.remove(); });
+            
+            // Close any modals
+            var modals = document.querySelectorAll('.modal, .popup, [role="dialog"]');
+            modals.forEach(function(el) { 
+                el.style.display = 'none';
+                el.remove();
+            });
+            
+            // Remove any divs that might be blocking
+            var blockers = document.querySelectorAll('div[style*="position: fixed"], div[style*="position: absolute"]');
+            blockers.forEach(function(el) {
+                if(el.style.zIndex && parseInt(el.style.zIndex) > 1000) {
+                    el.remove();
+                }
+            });
+        """)
+    except:
+        pass
+
 def login(driver):
     """Your working login function with added error handling"""
     try:
@@ -94,8 +129,11 @@ def login(driver):
         driver.get("https://premium.morningstar.com.au/auth/logout")
         wait = WebDriverWait(driver, 20)  # Increased timeout
         
-        # Wait for page to fully load
-        time.sleep(8)
+        # Wait for page to fully load - INCREASED for cloud
+        time.sleep(10)  # Increased from 8
+        
+        # Dismiss any initial popups
+        dismiss_popups(driver)
         
         # Open login form
         print("Looking for Sign-In button...")
@@ -111,6 +149,9 @@ def login(driver):
         
         wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_button-login-id')]"))).click()
         
+        # Wait for password field to be ready - INCREASED for cloud
+        time.sleep(3)
+        
         # Enter password and submit
         print("Entering password...")
         pwd_field = wait.until(EC.presence_of_element_located((By.ID, "password")))
@@ -120,10 +161,17 @@ def login(driver):
         
         wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_button-login-password')]"))).click()
         
+        # Wait for login to complete - INCREASED for cloud
+        time.sleep(5)
+        
         # Confirm login via search bar
         print("Verifying login success...")
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'input[placeholder="Search..."]')))
         print("Login successful!")
+        
+        # Dismiss any post-login popups
+        time.sleep(2)
+        dismiss_popups(driver)
         
     except Exception as e:
         print(f"Login error: {str(e)}")
@@ -132,14 +180,18 @@ def login(driver):
 def click_and_extract(driver, xpath: str) -> str:
     wait = WebDriverWait(driver, 15)
     try:
-        # Dismiss subscription pop-up if present
-        driver.execute_script(
-            "var el=document.getElementById('subscription-notification'); if(el) el.remove();"
-        )
+        # Enhanced popup dismissal before clicking
+        dismiss_popups(driver)
+        time.sleep(1)
+        
         # Select Overview tab
         overview_tab = wait.until(EC.element_to_be_clickable((By.XPATH, XPATHS["overview_tab"])))
-        overview_tab.click()
+        # Try JavaScript click if regular click might be blocked
+        driver.execute_script("arguments[0].click();", overview_tab)
         time.sleep(5)  # Wait for content to load
+        
+        # Dismiss popups again after tab click
+        dismiss_popups(driver)
         
         # Return text of target section
         elem = wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
@@ -174,21 +226,27 @@ def fetch_multiple_data(fund: str, data_points: list) -> dict:
         main_search.click()
         time.sleep(5)
         
+        # Dismiss any popups that might appear
+        dismiss_popups(driver)
+        
         # Wait for secondary search input
         sec_search = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[placeholder="Search securities and site"]')))
         sec_search.clear()
         sec_search.send_keys(fund)
-        time.sleep(5)  # Increased wait for suggestions
+        time.sleep(7)  # Increased wait for suggestions on cloud
         
         # Click first suggestion
         print("Clicking fund suggestion...")
         suggestion = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.mds-search-results__mca.search-results__mca ul.mds-list-group__mca li a')))
         suggestion.click()
         
-        # Wait for overview tab
+        # Wait for overview tab - INCREASED for cloud
         print("Waiting for fund page to load...")
+        time.sleep(7)
         wait.until(EC.presence_of_element_located((By.XPATH, XPATHS['overview_tab'])))
-        time.sleep(5)
+        
+        # Dismiss any popups on fund page
+        dismiss_popups(driver)
         
         # Extract all requested data points
         for data_point in data_points:
