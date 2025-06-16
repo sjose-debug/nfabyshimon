@@ -95,7 +95,7 @@ def login(driver):
         wait = WebDriverWait(driver, 20)  # Increased timeout
         
         # Wait for page to fully load
-        time.sleep(5)
+        time.sleep(8)
         
         # Open login form
         print("Looking for Sign-In button...")
@@ -107,7 +107,7 @@ def login(driver):
         email_field = wait.until(EC.presence_of_element_located((By.ID, "username")))
         email_field.clear()
         email_field.send_keys(USERNAME)
-        time.sleep(2)
+        time.sleep(5)
         
         wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_button-login-id')]"))).click()
         
@@ -116,7 +116,7 @@ def login(driver):
         pwd_field = wait.until(EC.presence_of_element_located((By.ID, "password")))
         pwd_field.clear()
         pwd_field.send_keys(PASSWORD)
-        time.sleep(2)
+        time.sleep(5)
         
         wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_button-login-password')]"))).click()
         
