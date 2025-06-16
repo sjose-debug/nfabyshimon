@@ -95,7 +95,7 @@ def login(driver):
         wait = WebDriverWait(driver, 20)  # Increased timeout
         
         # Wait for page to fully load
-        time.sleep(3)
+        time.sleep(5)
         
         # Open login form
         print("Looking for Sign-In button...")
@@ -107,7 +107,7 @@ def login(driver):
         email_field = wait.until(EC.presence_of_element_located((By.ID, "username")))
         email_field.clear()
         email_field.send_keys(USERNAME)
-        time.sleep(1)
+        time.sleep(2)
         
         wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_button-login-id')]"))).click()
         
@@ -116,7 +116,7 @@ def login(driver):
         pwd_field = wait.until(EC.presence_of_element_located((By.ID, "password")))
         pwd_field.clear()
         pwd_field.send_keys(PASSWORD)
-        time.sleep(1)
+        time.sleep(2)
         
         wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class,'_button-login-password')]"))).click()
         
@@ -139,7 +139,7 @@ def click_and_extract(driver, xpath: str) -> str:
         # Select Overview tab
         overview_tab = wait.until(EC.element_to_be_clickable((By.XPATH, XPATHS["overview_tab"])))
         overview_tab.click()
-        time.sleep(2)  # Wait for content to load
+        time.sleep(5)  # Wait for content to load
         
         # Return text of target section
         elem = wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
@@ -172,13 +172,13 @@ def fetch_multiple_data(fund: str, data_points: list) -> dict:
         print(f"Searching for fund: {fund}")
         main_search = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[placeholder="Search..."]')))
         main_search.click()
-        time.sleep(1)
+        time.sleep(5)
         
         # Wait for secondary search input
         sec_search = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[placeholder="Search securities and site"]')))
         sec_search.clear()
         sec_search.send_keys(fund)
-        time.sleep(3)  # Increased wait for suggestions
+        time.sleep(5)  # Increased wait for suggestions
         
         # Click first suggestion
         print("Clicking fund suggestion...")
@@ -188,7 +188,7 @@ def fetch_multiple_data(fund: str, data_points: list) -> dict:
         # Wait for overview tab
         print("Waiting for fund page to load...")
         wait.until(EC.presence_of_element_located((By.XPATH, XPATHS['overview_tab'])))
-        time.sleep(2)
+        time.sleep(5)
         
         # Extract all requested data points
         for data_point in data_points:
