@@ -9,23 +9,24 @@ from selenium.webdriver.support import expected_conditions as EC
 from pathlib import Path
 import time
 import streamlit as st
+import glob
 
 # Load environment variables
 load_dotenv()
 
-# Morningstar credentials - will come from Streamlit secrets in cloud
 USERNAME = os.getenv("MORNINGSTAR_USERNAME")
 PASSWORD = os.getenv("MORNINGSTAR_PASSWORD")
 
-# Try to get from Streamlit secrets if env vars not found
 if not USERNAME or not PASSWORD:
     try:
         USERNAME = st.secrets["MORNINGSTAR_USERNAME"]
         PASSWORD = st.secrets["MORNINGSTAR_PASSWORD"]
     except:
-        pass
+        # For Replit, also check os.environ directly
+        USERNAME = os.environ.get("MORNINGSTAR_USERNAME")
+        PASSWORD = os.environ.get("MORNINGSTAR_PASSWORD")
 
-# XPATH configuration
+# Your XPATHS dictionary remains the same
 XPATHS = {
     "overview_tab":        "//span[text()='Overview']",
     "mer":                 "//div[@class='sal-dp-pair'][.//div[@class='sal-dp-name' and normalize-space(text())='Total Cost Ratio (Prospective)']]//div[@class='sal-dp-value']",
@@ -34,10 +35,10 @@ XPATHS = {
 }
 
 def get_driver():
-    """Create a new Chrome driver instance optimized for Streamlit Cloud"""
+    """Modified get_driver for Replit compatibility"""
     opts = Options()
     
-    # Essential options for Streamlit Cloud
+    # Essential options
     opts.add_argument("--headless")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
@@ -45,47 +46,53 @@ def get_driver():
     opts.add_argument("--disable-features=NetworkService")
     opts.add_argument("--window-size=1920x1080")
     opts.add_argument("--disable-features=VizDisplayCompositor")
-    
-    # Additional options for stability
     opts.add_argument("--disable-extensions")
-    opts.add_argument("--disable-images")  # Faster loading
-    # REMOVED: opts.add_argument("--disable-javascript")  # This breaks login!
+    opts.add_argument("--disable-images")
     opts.add_experimental_option("excludeSwitches", ["enable-logging"])
-    
-    # Anti-detection basics (minimal but effective)
     opts.add_argument("--disable-blink-features=AutomationControlled")
     opts.add_experimental_option('useAutomationExtension', False)
     
-    # Try different Chrome binary locations
-    chrome_binaries = [
-        "/usr/bin/chromium",
-        "/usr/bin/chromium-browser",
-        "/usr/bin/chrome",
-        "/usr/bin/google-chrome",
-    ]
-    
-    for binary in chrome_binaries:
-        if os.path.exists(binary):
-            opts.binary_location = binary
-            break
-    
-    # Use webdriver_manager with error handling
-    try:
-        from webdriver_manager.chrome import ChromeDriverManager
-        from webdriver_manager.core.os_manager import ChromeType
+    # Check if running on Replit
+    if os.environ.get('REPL_ID'):
+        # Find Chrome binary on Replit
+        chrome_bins = glob.glob("/nix/store/*/bin/chromium")
+        if chrome_bins:
+            opts.binary_location = chrome_bins[0]
         
-        # Try Chromium first (for Streamlit Cloud)
+        # Find chromedriver on Replit
+        chromedrivers = glob.glob("/nix/store/*/bin/chromedriver")
+        if chromedrivers:
+            service = Service(chromedrivers[0])
+            driver = webdriver.Chrome(service=service, options=opts)
+        else:
+            driver = webdriver.Chrome(options=opts)
+    else:
+        # Your existing local setup
+        chrome_binaries = [
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chrome",
+            "/usr/bin/google-chrome",
+        ]
+        
+        for binary in chrome_binaries:
+            if os.path.exists(binary):
+                opts.binary_location = binary
+                break
+        
         try:
-            service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
-        except:
-            # Fallback to regular Chrome
-            service = Service(ChromeDriverManager().install())
+            from webdriver_manager.chrome import ChromeDriverManager
+            from webdriver_manager.core.os_manager import ChromeType
             
-        driver = webdriver.Chrome(service=service, options=opts)
-    except Exception as e:
-        print(f"Error with webdriver_manager: {e}")
-        # Final fallback
-        driver = webdriver.Chrome(options=opts)
+            try:
+                service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+            except:
+                service = Service(ChromeDriverManager().install())
+                
+            driver = webdriver.Chrome(service=service, options=opts)
+        except Exception as e:
+            print(f"Error with webdriver_manager: {e}")
+            driver = webdriver.Chrome(options=opts)
     
     driver.set_page_load_timeout(30)
     driver.implicitly_wait(10)
