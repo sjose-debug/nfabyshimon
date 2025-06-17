@@ -33,10 +33,16 @@ def get_driver():
     opts.add_argument("--headless")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--disable-gpu")
+    opts.add_argument("--disable-features=VizDisplayCompositor")
     opts.add_argument("--log-level=3")
+    
+    # Set Chrome binary location for Docker
+    opts.binary_location = "/usr/bin/google-chrome-stable"
+    
     service = Service(log_path=os.devnull)
     driver = webdriver.Chrome(service=service, options=opts)
-    driver.maximize_window()
+    driver.set_window_size(1920, 1080)
     return driver
 
 def login(driver):
@@ -100,6 +106,51 @@ def fetch_data(fund: str, data_point: str) -> str:
         
     except Exception as e:
         return f"Error fetching {data_point}: {str(e)}"
+    finally:
+        # Always close the driver
+        driver.quit()
+
+def fetch_multiple_data(fund: str, data_points: list) -> dict:
+    """Fetch multiple data points in a single session"""
+    driver = get_driver()
+    results = {}
+    
+    try:
+        # Login once
+        login(driver)
+        wait = WebDriverWait(driver, 15)
+        
+        # Search fund
+        main_search = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[placeholder="Search..."]')))
+        main_search.click()
+        
+        # Wait for secondary search input
+        sec_search = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[placeholder="Search securities and site"]')))
+        sec_search.clear()
+        sec_search.send_keys(fund)
+        time.sleep(1)  # Allow suggestions to load
+        
+        # Click first suggestion
+        suggestion = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'div.mds-search-results__mca.search-results__mca ul.mds-list-group__mca li a')))
+        suggestion.click()
+        
+        # Wait for overview tab
+        wait.until(EC.presence_of_element_located((By.XPATH, XPATHS['overview_tab'])))
+        time.sleep(1)
+        
+        # Extract each data point
+        for data_point in data_points:
+            try:
+                text = click_and_extract(driver, XPATHS[data_point])
+                results[data_point] = text
+            except Exception as e:
+                results[data_point] = f"Error: {str(e)}"
+        
+        return results
+        
+    except Exception as e:
+        # Return error for all requested data points
+        return {dp: f"Error: {str(e)}" for dp in data_points}
     finally:
         # Always close the driver
         driver.quit()
